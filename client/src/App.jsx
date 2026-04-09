@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import InputPanel from './components/InputPanel.jsx';
 import DiagramGrid from './components/DiagramGrid.jsx';
 import NumericalDisplay from './components/NumericalDisplay.jsx';
-import { fetchSymmetricalComponents } from './api/symmetrical.js';
+import { computeSymmetricalComponents } from './utils/symmetricalComponents.js';
 
 const DEFAULT_INPUTS = {
   Va: { magnitude: 100, angleDeg: 0 },
@@ -12,10 +12,6 @@ const DEFAULT_INPUTS = {
 
 export default function App() {
   const [inputs, setInputs] = useState(DEFAULT_INPUTS);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const debounceRef = useRef(null);
 
   function handleChange(phase, field, value) {
     setInputs((prev) => ({
@@ -24,27 +20,10 @@ export default function App() {
     }));
   }
 
-  useEffect(() => {
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await fetchSymmetricalComponents(
-          inputs.Va,
-          inputs.Vb,
-          inputs.Vc
-        );
-        setResult(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(debounceRef.current);
-  }, [inputs]);
+  const result = useMemo(
+    () => computeSymmetricalComponents(inputs.Va, inputs.Vb, inputs.Vc),
+    [inputs]
+  );
 
   return (
     <div className="app">
@@ -59,10 +38,6 @@ export default function App() {
       <main className="app-main">
         <aside className="app-sidebar">
           <InputPanel inputs={inputs} onChange={handleChange} />
-
-          {error && <div className="error-banner">{error}</div>}
-          {loading && <div className="loading-bar" />}
-
           <NumericalDisplay result={result} />
 
           <section className="theory-note">
@@ -76,17 +51,11 @@ export default function App() {
               <li><strong>Negative seq (−):</strong> balanced, ACB rotation</li>
               <li><strong>Zero seq (0):</strong> all phasors in phase</li>
             </ul>
-            <code className="formula">
-              Va₁ = ⅓(Va + a·Vb + a²·Vc)
-            </code>
-            <code className="formula">
-              Va₂ = ⅓(Va + a²·Vb + a·Vc)
-            </code>
-            <code className="formula">
-              Va₀ = ⅓(Va + Vb + Vc)
-            </code>
+            <code className="formula">Va₁ = ⅓(Va + a·Vb + a²·Vc)</code>
+            <code className="formula">Va₂ = ⅓(Va + a²·Vb + a·Vc)</code>
+            <code className="formula">Va₀ = ⅓(Va + Vb + Vc)</code>
             <p className="formula-label">
-              where <em>a</em> = e<sup>j120°</sup> (unit phasor at 120°)
+              where <em>a</em> = e<sup>j120°</sup>
             </p>
           </section>
         </aside>
