@@ -1,139 +1,103 @@
 import { polarToSvg } from '../utils/phasorMath.js';
 
 const SVG_RADIUS = 100;
-const VIEW = 130; // half of viewBox dimension — a bit larger than SVG_RADIUS for labels
-
-// Reference circle radii (in SVG units)
+const VIEW = 130;
 const REF_CIRCLES = [25, 50, 75, 100];
 
-// Axis lines: [x1,y1,x2,y2]
-const AXES = [
-  [-SVG_RADIUS, 0, SVG_RADIUS, 0],
-  [0, -SVG_RADIUS, 0, SVG_RADIUS],
-];
-
-function Arrowhead({ id, color }) {
+function Background() {
   return (
-    <marker
-      id={id}
-      markerWidth="6"
-      markerHeight="6"
-      refX="5"
-      refY="3"
-      orient="auto"
-    >
+    <>
+      <rect x={-VIEW} y={-VIEW} width={VIEW * 2} height={VIEW * 2} fill="#1e2d3d" />
+      {REF_CIRCLES.map(r => (
+        <circle key={r} cx="0" cy="0" r={r} fill="none" stroke="#2d4560" strokeWidth="0.6" />
+      ))}
+      <line x1={-SVG_RADIUS} y1="0" x2={SVG_RADIUS} y2="0" stroke="#3a5570" strokeWidth="0.6" strokeDasharray="4 3" />
+      <line x1="0" y1={-SVG_RADIUS} x2="0" y2={SVG_RADIUS} stroke="#3a5570" strokeWidth="0.6" strokeDasharray="4 3" />
+      {[0, 90, 180, 270].map(deg => {
+        const rad = (deg * Math.PI) / 180;
+        return (
+          <text key={deg}
+            x={Math.cos(rad) * (SVG_RADIUS + 16)}
+            y={-Math.sin(rad) * (SVG_RADIUS + 16)}
+            fill="#4a6a88" fontSize="7" textAnchor="middle" dominantBaseline="middle">
+            {deg}°
+          </text>
+        );
+      })}
+    </>
+  );
+}
+
+function Arrow({ id, color }) {
+  return (
+    <marker id={id} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
       <path d="M0,0 L0,6 L6,3 z" fill={color} />
     </marker>
   );
 }
 
-/**
- * phasors: Array of { label, magnitude, angleDeg, color }
- * maxMagnitude: shared scale reference across all diagrams
- * title: diagram title
- * isZeroSeq: if true, phasors overlap — offset slightly so all are visible
- */
-export default function PhasorDiagram({ title, phasors, maxMagnitude, isZeroSeq = false }) {
-  const scale = maxMagnitude > 0 ? SVG_RADIUS / maxMagnitude : 1;
+function Phasor({ label, magnitude, angleDeg, color, scale, markerId, offsetX = 0, offsetY = 0 }) {
+  const tip = polarToSvg(magnitude, angleDeg, scale);
+  const x2 = tip.x + offsetX;
+  const y2 = tip.y + offsetY;
+  const lx = polarToSvg(magnitude, angleDeg, scale * 1.18).x + offsetX;
+  const ly = polarToSvg(magnitude, angleDeg, scale * 1.18).y + offsetY;
+  return (
+    <g>
+      <line x1={offsetX} y1={offsetY} x2={x2} y2={y2}
+        stroke={color} strokeWidth="2.2" markerEnd={`url(#${markerId})`} />
+      <text x={lx} y={ly} fill={color} fontSize="9" fontWeight="bold"
+        textAnchor="middle" dominantBaseline="middle">{label}</text>
+    </g>
+  );
+}
 
-  // For zero sequence, offset lines slightly so they don't fully overlap
+/**
+ * Standard phasor diagram (all phasors from origin).
+ *
+ * phasors: [{ label, magnitude, angleDeg, color }]
+ * maxMagnitude: unified scale reference
+ * animAngle: added to all phasor angles (for spinning)
+ * isZeroSeq: offset overlapping lines slightly
+ */
+export default function PhasorDiagram({ title, phasors, maxMagnitude, animAngle = 0, isZeroSeq = false }) {
+  const scale = maxMagnitude > 0 ? SVG_RADIUS / maxMagnitude : 1;
   const offsets = isZeroSeq ? [-1.5, 0, 1.5] : [0, 0, 0];
 
   return (
     <div className="phasor-diagram">
       <h3 className="diagram-title">{title}</h3>
-      <svg
-        viewBox={`${-VIEW} ${-VIEW} ${VIEW * 2} ${VIEW * 2}`}
-        className="phasor-svg"
-        aria-label={`${title} phasor diagram`}
-      >
+      <svg viewBox={`${-VIEW} ${-VIEW} ${VIEW * 2} ${VIEW * 2}`} className="phasor-svg">
         <defs>
-          {phasors.map((p) => (
-            <Arrowhead key={p.label} id={`arrow-${title.replace(/\s/g, '')}-${p.label}`} color={p.color} />
+          {phasors.map(p => (
+            <Arrow key={p.label} id={`${title}-${p.label}`} color={p.color} />
           ))}
         </defs>
-
-        {/* Background */}
-        <rect x={-VIEW} y={-VIEW} width={VIEW * 2} height={VIEW * 2} fill="#0f172a" />
-
-        {/* Reference circles */}
-        {REF_CIRCLES.map((r) => (
-          <circle key={r} cx="0" cy="0" r={r} fill="none" stroke="#334155" strokeWidth="0.5" />
-        ))}
-
-        {/* Axis lines */}
-        {AXES.map(([x1, y1, x2, y2], i) => (
-          <line
-            key={i}
-            x1={x1} y1={y1} x2={x2} y2={y2}
-            stroke="#475569"
-            strokeWidth="0.5"
-            strokeDasharray="4 4"
-          />
-        ))}
-
-        {/* Angle labels at 0°, 90°, 180°, 270° */}
-        {[0, 90, 180, 270].map((deg) => {
-          const rad = (deg * Math.PI) / 180;
-          const lx = Math.cos(rad) * (SVG_RADIUS + 14);
-          const ly = -Math.sin(rad) * (SVG_RADIUS + 14);
-          return (
-            <text key={deg} x={lx} y={ly} fill="#64748b" fontSize="7" textAnchor="middle" dominantBaseline="middle">
-              {deg}°
-            </text>
-          );
-        })}
-
-        {/* Phasors */}
+        <Background />
         {phasors.map((p, i) => {
-          const tip = polarToSvg(p.magnitude, p.angleDeg, scale);
-          const offsetAngleRad = ((p.angleDeg + 90) * Math.PI) / 180;
-          const ox = offsets[i] * Math.cos(offsetAngleRad);
-          const oy = -offsets[i] * Math.sin(offsetAngleRad);
-
-          const x2 = tip.x + ox;
-          const y2 = tip.y + oy;
-          const markerId = `arrow-${title.replace(/\s/g, '')}-${p.label}`;
-
-          // Label position: 15% beyond tip
-          const labelScale = 1.18;
-          const lx = polarToSvg(p.magnitude, p.angleDeg, scale * labelScale).x + ox;
-          const ly = polarToSvg(p.magnitude, p.angleDeg, scale * labelScale).y + oy;
-
+          const offRad = ((p.angleDeg + animAngle + 90) * Math.PI) / 180;
           return (
-            <g key={p.label}>
-              <line
-                x1={ox} y1={oy}
-                x2={x2} y2={y2}
-                stroke={p.color}
-                strokeWidth="2"
-                markerEnd={`url(#${markerId})`}
-              />
-              <text
-                x={lx} y={ly}
-                fill={p.color}
-                fontSize="9"
-                fontWeight="bold"
-                textAnchor="middle"
-                dominantBaseline="middle"
-              >
-                {p.label}
-              </text>
-            </g>
+            <Phasor
+              key={p.label}
+              label={p.label}
+              magnitude={p.magnitude}
+              angleDeg={p.angleDeg + animAngle}
+              color={p.color}
+              scale={scale}
+              markerId={`${title}-${p.label}`}
+              offsetX={offsets[i] * Math.cos(offRad)}
+              offsetY={-offsets[i] * Math.sin(offRad)}
+            />
           );
         })}
-
-        {/* Zero sequence annotation */}
         {isZeroSeq && (
-          <text x="0" y={VIEW - 12} fill="#94a3b8" fontSize="7" textAnchor="middle">
+          <text x="0" y={VIEW - 14} fill="#4a6a88" fontSize="7" textAnchor="middle">
             All phases equal — offset for visibility
           </text>
         )}
       </svg>
-
-      {/* Legend */}
       <div className="diagram-legend">
-        {phasors.map((p) => (
+        {phasors.map(p => (
           <span key={p.label} className="legend-item">
             <span className="legend-dot" style={{ background: p.color }} />
             {p.label}
